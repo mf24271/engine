@@ -118,20 +118,20 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
 
     _fillTextureGrids: function (tileset, texId) {
         var tex = this._textures[texId];
-        if (!tex.isLoaded()) {
-            tex.once('load', function () {
-                this._fillTextureGrids(tileset, texId);
-            }, this);
-            return;
-        }
+        // if (!tex.isLoaded()) {
+        //     tex.once('load', function () {
+        //         this._fillTextureGrids(tileset, texId);
+        //     }, this);
+        //     return;
+        // }
         if (!tileset.imageSize.width || !tileset.imageSize.height) {
-            tileset.imageSize.width = tex.width;
-            tileset.imageSize.height = tex.height;
+            tileset.imageSize.width = tileset._tileSize.width;
+            tileset.imageSize.height = tileset._tileSize.height;
         }
         var tw = tileset._tileSize.width,
             th = tileset._tileSize.height,
-            imageW = tex.width,
-            imageH = tex.height,
+            imageW = tileset.imageSize.width,
+            imageH = tileset.imageSize.height,
             spacing = tileset.spacing,
             margin = tileset.margin,
 
@@ -158,7 +158,7 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
             grid = {
                 texId: texId,
                 x: 0, y: 0, width: tw, height: th,
-                t: 0, l: 0, r: 0, b: 0
+                t: 0, l: 0, r: 0, b: 0,tileset:tileset
             };
             tileset.rectForGID(gid, grid);
             grid.x += texelCorrect;
@@ -209,9 +209,10 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
             this._texGrids = [];
             for (i = 0; i < len; ++i) {
                 tileset = tilesets[i];
-                tex = cc.textureCache.addImage(tileset.sourceImage, function (tex) {
-                    tex.setAliasTexParameters();
-                });
+                //先不加载所有图片
+                // tex = cc.textureCache.addImage(tileset.sourceImage, function (tex) {
+                //     tex.setAliasTexParameters();
+                // });
                 this._textures[i] = tex;
                 this._fillTextureGrids(tileset, i);
                 if (tileset === tilesetInfo) {
@@ -275,7 +276,7 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
                 }
             }
 
-            renderer.pushRenderCommand(cmd);
+            // renderer.pushRenderCommand(cmd);
             for (; i < len; i++) {
                 child = children[i];
                 if (isCanvas &&
@@ -291,11 +292,11 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
                 child.visit(this);
             }
         } else {
-            renderer.pushRenderCommand(cmd);
+            // renderer.pushRenderCommand(cmd);
         }
 
         if(cc._renderType === cc.game.RENDER_TYPE_WEBGL) {
-            renderer.pushRenderCommand(this._renderCmd._disableDepthTestCmd);
+            // renderer.pushRenderCommand(this._renderCmd._disableDepthTestCmd);
         }
 
         cmd._dirtyFlag = 0;
@@ -500,12 +501,30 @@ _ccsg.TMXLayer = _ccsg.Node.extend(/** @lends _ccsg.TMXLayer# */{
         if (!tile) {
             var rect = this._texGrids[gid];
             var tex = this._textures[rect.texId];
+            if (tex == null) {
+                tex = cc.textureCache.addImage(rect.tileset.sourceImage, function (tex) {
+                    tex.setAliasTexParameters();
+                });
+                this._textures[rect.texId] = tex;
+            }
 
+            if (!tex.isLoaded()) {
+                tex.once('load', function () {
+                    this.getTileAt(x, y);
+                }, this);
+                return null;
+            }
             tile = new _ccsg.Sprite(tex, rect);
-            tile.setPosition(this.getPositionAt(x, y));
-            var vertexZ = this._vertexZForPos(x, y);
+            var pos = this.getPositionAt(x, y)
+            var offsetX = rect.width / 2 - (-rect.tileset.tileOffset.x);
+            pos.x += offsetX;
+            tile.setAnchorPoint(0.5, rect.tileset.tileOffset.y / rect.height);
+            tile.setPosition(pos);
+            // tile.setPosition(this.getPositionAt(x, y));
+            this._useAutomaticVertexZ = true;
+            var vertexZ = this._vertexZForPos(x, y)*10;
             tile.setVertexZ(vertexZ);
-            tile.setAnchorPoint(0, 0);
+            // tile.setAnchorPoint(0, 0);
             tile.setOpacity(this._opacity);
             this.addChild(tile, vertexZ, z);
         }
